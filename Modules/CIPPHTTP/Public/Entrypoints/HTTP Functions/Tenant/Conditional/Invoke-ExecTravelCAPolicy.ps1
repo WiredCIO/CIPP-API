@@ -38,30 +38,30 @@ function Invoke-ExecTravelCAPolicy {
         # Build date strings for policy name
         $StartStr   = [datetimeoffset]::FromUnixTimeSeconds($StartDate).ToString('yyyyMMdd')
         $EndStr     = [datetimeoffset]::FromUnixTimeSeconds($EndDate).ToString('yyyyMMdd')
-        $PolicyName = "CIPP_TravelPolicy_${StartStr}_${EndStr}"
+        $PolicyName = "TravelPolicy_${StartStr}_${EndStr}"
 
-        #region --- 1. Check/create CIPP_TravelingUsers group ---
+        #region --- 1. Check/create TravelingUsers group ---
         $ExistingGroups = New-GraphGetRequest `
-            -uri "https://graph.microsoft.com/beta/groups?`$filter=displayName eq 'CIPP_TravelingUsers'&`$select=id,displayName&`$count=true" `
+            -uri "https://graph.microsoft.com/beta/groups?`$filter=displayName eq 'TravelingUsers'&`$select=id,displayName&`$count=true" `
             -tenantid $TenantFilter -asApp $true -ComplexFilter
 
         if ($ExistingGroups) {
             $TravelGroupId = $ExistingGroups[0].id
-            Write-Information "Using existing CIPP_TravelingUsers group: $TravelGroupId"
+            Write-Information "Using existing TravelingUsers group: $TravelGroupId"
         } else {
-            Write-Information 'Creating CIPP_TravelingUsers group'
+            Write-Information 'Creating TravelingUsers group'
             $GroupObject = [PSCustomObject]@{
                 groupType       = 'generic'
-                displayName     = 'CIPP_TravelingUsers'
-                username        = 'CIPP_TravelingUsers'
+                displayName     = 'TravelingUsers'
+                username        = 'TravelingUsers'
                 securityEnabled = $true
             }
             $NewGroup = New-CIPPGroup -GroupObject $GroupObject -TenantFilter $TenantFilter -APIName 'Invoke-ExecTravelCAPolicy'
             if (-not $NewGroup.Success) {
-                throw "Failed to create CIPP_TravelingUsers group: $($NewGroup.Message)"
+                throw "Failed to create TravelingUsers group: $($NewGroup.Message)"
             }
             $TravelGroupId = $NewGroup.GroupId
-            Write-Information "Created CIPP_TravelingUsers group: $TravelGroupId"
+            Write-Information "Created TravelingUsers group: $TravelGroupId"
             # Wait for group to propagate before use
             Start-Sleep -Seconds 5
         }
@@ -75,7 +75,7 @@ function Invoke-ExecTravelCAPolicy {
                 -tenantid $TenantFilter -asApp $true
 
             if ($CurrentPolicy.conditions.users.excludeGroups -notcontains $TravelGroupId) {
-                Write-Information "Adding CIPP_TravelingUsers exclusion to policy: $($CurrentPolicy.displayName)"
+                Write-Information "Adding TravelingUsers exclusion to policy: $($CurrentPolicy.displayName)"
                 $ExistingExclusions = @($CurrentPolicy.conditions.users.excludeGroups | Where-Object { $_ })
                 $ExistingExclusions += $TravelGroupId
                 $PatchBody = @{
@@ -89,10 +89,10 @@ function Invoke-ExecTravelCAPolicy {
                     -uri "https://graph.microsoft.com/beta/identity/conditionalAccess/policies/$PolicyId" `
                     -tenantid $TenantFilter -type PATCH -body $PatchBody -asApp $true
                 Write-LogMessage -headers $Headers -API 'Invoke-ExecTravelCAPolicy' `
-                    -message "Added CIPP_TravelingUsers exclusion to CA policy: $($CurrentPolicy.displayName)" `
+                    -message "Added TravelingUsers exclusion to CA policy: $($CurrentPolicy.displayName)" `
                     -Sev 'Info' -tenant $TenantFilter
             } else {
-                Write-Information "CIPP_TravelingUsers already excluded from policy: $($CurrentPolicy.displayName)"
+                Write-Information "TravelingUsers already excluded from policy: $($CurrentPolicy.displayName)"
             }
         }
         #endregion
@@ -123,7 +123,7 @@ function Invoke-ExecTravelCAPolicy {
 
         # Create a country-based Named Location if country codes were provided
         if ($CountryCodes -and $CountryCodes.Count -gt 0) {
-            $CountryLocationName = "CIPP_Travel_${StartStr}_${EndStr}_Countries"
+            $CountryLocationName = "Travel_${StartStr}_${EndStr}_Countries"
             $CountryLocationBody = @{
                 '@odata.type'                     = '#microsoft.graph.countryNamedLocation'
                 displayName                       = $CountryLocationName
@@ -199,7 +199,7 @@ function Invoke-ExecTravelCAPolicy {
         #region --- 5. Schedule tasks ---
         $UserMembers = $UserUPNs ?? $UserIds
 
-        # StartDate: Add users to CIPP_TravelingUsers group
+        # StartDate: Add users to TravelingUsers group
         $AddMemberTask = [pscustomobject]@{
             TenantFilter  = $TenantFilter
             Name          = "Vacation Travel - Add to group: $PolicyName"
